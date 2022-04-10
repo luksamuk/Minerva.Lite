@@ -19,7 +19,6 @@
 //! clientes, e não possui autenticação.
 
 use chrono;
-use chrono::{offset::Local, DateTime};
 use minerva_lite::minerva_server::{Minerva, MinervaServer};
 use minerva_lite::*;
 use tonic::{Request, Response, Status};
@@ -46,8 +45,9 @@ pub struct MinervaLiteService {
 /// A função cria uma task que imprimirá o log de quando a requisição foi
 /// feita, mas apenas quando isso for possível. Feito dessa forma para evitar
 /// gargalos em respostas a requisições.
-fn log(msg: &str, time: DateTime<Local>) {
+fn log(msg: &str) {
     let msg = msg.to_string();
+    let time = chrono::offset::Local::now();
     tokio::spawn(async move {
         println!("{} :: {}", time, msg);
     });
@@ -57,7 +57,7 @@ fn log(msg: &str, time: DateTime<Local>) {
 impl Minerva for MinervaLiteService {
     /// Resposta à requisição de ping.
     async fn ping(&self, _: Request<()>) -> Result<Response<()>, Status> {
-        log("Ping(Empty) -> (Empty)", chrono::offset::Local::now());
+        log("Ping(Empty) -> (Empty)");
         Ok(Response::new(()))
     }
 
@@ -66,10 +66,7 @@ impl Minerva for MinervaLiteService {
         &self,
         req: Request<NovoClienteRequest>,
     ) -> Result<Response<ClienteResponse>, Status> {
-        log(
-            "CadastraCliente(NovoCliente) -> (Cliente)",
-            chrono::offset::Local::now(),
-        );
+        log("CadastraCliente(NovoCliente) -> (Cliente)");
 
         let conn = self
             .pool
@@ -88,10 +85,10 @@ impl Minerva for MinervaLiteService {
         req: Request<IdClienteRequest>,
     ) -> Result<Response<ClienteResponse>, Status> {
         let id = req.into_inner().id;
-        log(
-            &format!("ConsultaCliente(IdCliente) -> (Cliente) :: ID = {}", id),
-            chrono::offset::Local::now(),
-        );
+        log(&format!(
+            "ConsultaCliente(IdCliente) -> (Cliente) :: ID = {}",
+            id
+        ));
 
         let conn = self
             .pool
@@ -107,10 +104,10 @@ impl Minerva for MinervaLiteService {
     /// Resposta à requisição de remoção de um cliente.
     async fn deleta_cliente(&self, req: Request<IdClienteRequest>) -> Result<Response<()>, Status> {
         let id = req.into_inner().id;
-        log(
-            &format!("DeletaCliente(IdCliente) -> (Empty) :: ID = {}", id),
-            chrono::offset::Local::now(),
-        );
+        log(&format!(
+            "DeletaCliente(IdCliente) -> (Empty) :: ID = {}",
+            id
+        ));
 
         let conn = self
             .pool
