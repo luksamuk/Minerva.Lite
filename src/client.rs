@@ -40,7 +40,7 @@ async fn main() -> Result<(), ErrorImpl> {
 
     // Sorteia um número de 15 a 50 como número de
     // testes simultâneos.
-    let num: u32 = {
+    let num = {
         use rand::Rng;
         let mut rng = rand::thread_rng();
         rng.gen_range(15..50)
@@ -118,9 +118,19 @@ fn gera_clientes() -> Vec<NovoClienteRequest> {
             docto: "888.888.888-88".to_string(),
         },
         NovoClienteRequest {
+            nome: "Empresa S/A".to_string(),
+            pj: true,
+            docto: "99.999.999/9999-99".to_string(),
+        },
+        NovoClienteRequest {
             nome: "Ciclano da Silva".to_string(),
             pj: false,
             docto: "777.777.777-77".to_string(),
+        },
+        NovoClienteRequest {
+            nome: "Outra Empresa LTDA".to_string(),
+            pj: true,
+            docto: "99.999.999/9999-99".to_string(),
         },
     ]
 }
@@ -130,15 +140,20 @@ async fn teste_cadastro(
     t: u32,
     client: &mut MinervaClient<Channel>,
 ) -> Result<Vec<i32>, ErrorImpl> {
-    let num: u32 = {
+    let num = {
         use rand::Rng;
         let mut rng = rand::thread_rng();
         rng.gen_range(1..50)
     };
 
-    println!("## T{}: Cadastrando {} clientes...", t, num * 3);
-
     let clientes = gera_clientes();
+
+    println!(
+        "## T{}: Cadastrando {} clientes...",
+        t,
+        num * clientes.len()
+    );
+
     let mut cadastrados = vec![];
 
     for _ in 0..num {
@@ -161,7 +176,7 @@ async fn teste_consulta(
     client: &mut MinervaClient<Channel>,
     cadastrados: &Vec<i32>,
 ) -> Result<(), ErrorImpl> {
-    let num: u32 = {
+    let num = {
         use rand::Rng;
         let mut rng = rand::thread_rng();
         rng.gen_range(1..cadastrados.len()).try_into().unwrap()
