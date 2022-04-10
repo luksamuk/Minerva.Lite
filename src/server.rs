@@ -31,7 +31,7 @@ async fn main() -> Result<(), ErrorImpl> {
     let addr = format!("0.0.0.0:{}", port).parse()?;
 
     let server = Server::builder()
-        .add_service(service::make_service())
+        .add_service(service::make_service().await)
         .serve(addr);
 
     println!("Escutando em {}.", addr);

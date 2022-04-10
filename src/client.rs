@@ -38,12 +38,12 @@ async fn main() -> Result<(), ErrorImpl> {
     let str_addr = format!("http://127.0.0.1:{}", port);
     println!("Endereço do servidor: {}.", str_addr);
 
-    // Sorteia um número de 1 a 20 como número de
+    // Sorteia um número de 15 a 50 como número de
     // testes simultâneos.
     let num: u32 = {
         use rand::Rng;
         let mut rng = rand::thread_rng();
-        rng.gen_range(1..20)
+        rng.gen_range(15..50)
     };
 
     println!("# Executando {} testes simultâneos...", num);
@@ -92,6 +92,7 @@ async fn run_tests(t: u32, addr: String) -> Result<(), ErrorImpl> {
 }
 
 /// Imprime os dados de um único cliente.
+#[allow(dead_code)]
 fn imprime_cliente(res: &ClienteResponse) {
     println!(
         "ID: {}\n\
@@ -169,12 +170,11 @@ async fn teste_consulta(
 
     for _ in 0..num {
         let id = cadastrados.choose(&mut rand::thread_rng()).unwrap();
-        let response = client
+        let _ = client
             .consulta_cliente(Request::new(IdClienteRequest { id: *id }))
             .await?
             .into_inner();
-
-        imprime_cliente(&response);
+        println!("   T{}: Cliente {} recuperado.", t, id);
     }
 
     Ok(())

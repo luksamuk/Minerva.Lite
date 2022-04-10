@@ -19,15 +19,17 @@
 //! clientes, e não possui autenticação.
 
 use chrono;
+use chrono::{offset::Local, DateTime};
 use minerva_lite::minerva_server::{Minerva, MinervaServer};
 use minerva_lite::*;
 use tonic::{Request, Response, Status};
 
-use diesel::r2d2::{ConnectionManager, Pool};
+use bb8::Pool;
+use bb8_diesel::DieselConnectionManager;
 use diesel::PgConnection;
 use std::env;
 
-pub type ConnectionPool = Pool<ConnectionManager<PgConnection>>;
+pub type ConnectionPool = Pool<DieselConnectionManager<PgConnection>>;
 
 use minerva_lite::controller::cliente as controller;
 
@@ -40,16 +42,22 @@ pub struct MinervaLiteService {
     pool: ConnectionPool,
 }
 
-/// Função auxiliar de log.
-fn log(msg: &str) {
-    println!("{} :: {}", chrono::offset::Utc::now(), msg);
+/// Função auxiliar de log assíncrono.
+/// A função cria uma task que imprimirá o log de quando a requisição foi
+/// feita, mas apenas quando isso for possível. Feito dessa forma para evitar
+/// gargalos em respostas a requisições.
+fn log(msg: &str, time: DateTime<Local>) {
+    let msg = msg.to_string();
+    tokio::spawn(async move {
+        println!("{} :: {}", time, msg);
+    });
 }
 
 #[tonic::async_trait]
 impl Minerva for MinervaLiteService {
     /// Resposta à requisição de ping.
     async fn ping(&self, _: Request<()>) -> Result<Response<()>, Status> {
-        log("Ping(Empty) -> (Empty)");
+        log("Ping(Empty) -> (Empty)", chrono::offset::Local::now());
         Ok(Response::new(()))
     }
 
@@ -58,12 +66,16 @@ impl Minerva for MinervaLiteService {
         &self,
         req: Request<NovoClienteRequest>,
     ) -> Result<Response<ClienteResponse>, Status> {
-        log("CadastraCliente(NovoCliente) -> (Cliente)");
+        log(
+            "CadastraCliente(NovoCliente) -> (Cliente)",
+            chrono::offset::Local::now(),
+        );
 
-        let conn = {
-            let pool = self.pool.clone();
-            pool.get().map_err(|_| Status::internal(DB_ERR_MSG))?
-        };
+        let conn = self
+            .pool
+            .get()
+            .await
+            .map_err(|_| Status::internal(DB_ERR_MSG))?;
 
         controller::cadastra(&conn, req.into_inner().into())
             .map_err(|_| Status::invalid_argument("Usuário não cadastrado"))
@@ -76,15 +88,16 @@ impl Minerva for MinervaLiteService {
         req: Request<IdClienteRequest>,
     ) -> Result<Response<ClienteResponse>, Status> {
         let id = req.into_inner().id;
-        log(&format!(
-            "ConsultaCliente(IdCliente) -> (Cliente) :: ID = {}",
-            id
-        ));
+        log(
+            &format!("ConsultaCliente(IdCliente) -> (Cliente) :: ID = {}", id),
+            chrono::offset::Local::now(),
+        );
 
-        let conn = {
-            let pool = self.pool.clone();
-            pool.get().map_err(|_| Status::internal(DB_ERR_MSG))?
-        };
+        let conn = self
+            .pool
+            .get()
+            .await
+            .map_err(|_| Status::internal(DB_ERR_MSG))?;
 
         controller::consulta(&conn, id)
             .map_err(|_| Status::not_found("Usuário não encontrado"))
@@ -94,15 +107,16 @@ impl Minerva for MinervaLiteService {
     /// Resposta à requisição de remoção de um cliente.
     async fn deleta_cliente(&self, req: Request<IdClienteRequest>) -> Result<Response<()>, Status> {
         let id = req.into_inner().id;
-        log(&format!(
-            "DeletaCliente(IdCliente) -> (Empty) :: ID = {}",
-            id
-        ));
+        log(
+            &format!("DeletaCliente(IdCliente) -> (Empty) :: ID = {}", id),
+            chrono::offset::Local::now(),
+        );
 
-        let conn = {
-            let pool = self.pool.clone();
-            pool.get().map_err(|_| Status::internal(DB_ERR_MSG))?
-        };
+        let conn = self
+            .pool
+            .get()
+            .await
+            .map_err(|_| Status::internal(DB_ERR_MSG))?;
 
         controller::remove(&conn, id)
             .map_err(|_| Status::not_found("Usuário não encontrado"))
@@ -112,20 +126,21 @@ impl Minerva for MinervaLiteService {
 
 /// Cria uma pool com no máximo 15 conexões disponíveis com o PostgreSQL.
 /// Depende da variável de ambiente `DATABASE_URL`.
-fn connection_pool() -> ConnectionPool {
+async fn connection_pool() -> ConnectionPool {
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL não foi definido");
-    let manager = ConnectionManager::<PgConnection>::new(&database_url);
+    let manager = DieselConnectionManager::<PgConnection>::new(&database_url);
 
     Pool::builder()
         .max_size(15)
         .build(manager)
+        .await
         .expect("Impossível criar pool de conexões com PostgreSQL")
 }
 
 /// Cria um serviço do Minerva.Lite. Este serviço deverá ser atrelado
 /// ao servidor gRPC no ponto de entrada da aplicação.
-pub fn make_service() -> MinervaServer<MinervaLiteService> {
+pub async fn make_service() -> MinervaServer<MinervaLiteService> {
     MinervaServer::new(MinervaLiteService {
-        pool: connection_pool(),
+        pool: connection_pool().await,
     })
 }
