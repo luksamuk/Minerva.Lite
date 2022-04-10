@@ -1,0 +1,77 @@
+// minerva.proto -- Uma parte de Minerva.Lite
+// Copyright (C) 2022 Lucas S. Vieira
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
+// Este arquivo contém as definições básicas do protocolo para uso do padrão
+// gRPC em conjunto com o Minerva.Lite. Para acessar o backend, será necessário
+// implementar um padrão de acesso com base neste Protobuf, ou usar a biblioteca
+// incluída neste repositório.
+
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+package Minerva;
+
+// Serviço base da aplicação.
+service Minerva {
+  // Requisição comum de Ping. Pode ser utilizada para verificar
+  // o tempo de resposta do servidor.
+  rpc Ping(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+
+  // Requisição de cadastro de cliente. Recebe apenas os campos
+  // necessários para cadastro, e retorna a estrutura completa do
+  // cliente cadastrado.
+  rpc CadastraCliente(NovoClienteRequest) returns (ClienteResponse) {}
+
+  // Requisição de consulta a um único cliente. Recebe apenas o ID
+  // do cliente referido, e retorna a estrutura completa do cliente,
+  // se cadastrado.
+  rpc ConsultaCliente(IdClienteRequest) returns (ClienteResponse) {}
+
+  // Requisição de remoção de um cliente. Recebe apenas o ID do cliente
+  // referido, e não retorna nada.
+  rpc DeletaCliente(IdClienteRequest) returns (google.protobuf.Empty) {}
+}
+
+/* Mensagens de Requisições */
+
+// Mensagem de cadastro de um novo cliente.
+message NovoClienteRequest {
+  string nome = 3;
+  bool pj = 4;
+  string docto = 5;
+}
+
+// Mensagem de pesquisa através do ID de
+// um cliente.
+message IdClienteRequest {
+  int32 id = 1;
+}
+
+/* Mensagens de Respostas */
+
+// Mensagem de retorno dos dados de um cliente.
+message ClienteResponse {
+  int32 id = 1;
+  int32 tipo = 2;
+  string nome = 3;
+  bool pj = 4;
+  string docto = 5;
+  bool ativo = 6;
+  bool bloqueado = 7;
+}
+

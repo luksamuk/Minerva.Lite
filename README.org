@@ -1,0 +1,64 @@
+#+title: Minerva.Lite
+
+* Descrição
+
+Este projeto é um experimento feito em  paralelo com o projeto [[https://github.com/luksamuk/minerva.rs][Minerva.rs]], com o
+intuito  de  ser um  teste  de  usabilidade e  de  estudo  do padrão  gRPC  para
+implementar um backend simples de uma aplicação web.
+
+Por basear-se no Minerva.rs, este repositório não é autossuficiente. Para testar
+o servidor, você deverá clonar o código  do Minerva.rs e executar as migrações a
+fim de  criar o  banco de dados  com estrutura adequada  (recomenda-se o  uso de
+Docker, como orientado na documentação do projeto).
+
+* Dependências
+
+- Rust (versão 2021, canal stable, preferencialmente com ~rustc~ 1.59.0);
+- Cargo (ferramenta do Rust para compilação);
+- PostgreSQL 11 ou 14 (utilizável via Docker).
+
+Caso  você  já tenha  configurado  seu  ambiente  para  o Minerva.rs,  não  será
+necessário configurar nada mais.
+
+Para dependências  relacionadas a execução de  migrations e criação do  banco de
+dados, veja o README do Minerva.rs.
+
+* Utilização
+
+Este repositório compila três projetos em separado:
+
+- A biblioteca Minerva.Lite;
+- Um servidor gRPC (~liteserver~);
+- Um cliente que realiza stress tests (~liteclient~).
+
+Para  compilar  a  aplicação,  garanta primeiramente  que  o  PostgreSQL  esteja
+configurado e rodando.
+
+** Executando o servidor
+
+Você poderá executar o servidor através do Cargo:
+
+#+begin_src bash
+$ cargo run --bin liteserver
+#+end_src
+
+Isso fará  com que o  servidor execute na porta  padrão 50051. Caso  você queira
+executar em outra porta, modifique a variável ~GRPC_PORT~ do arquivo ~.env~.
+
+** Executando o cliente
+
+Enquanto o servidor estiver em execução, você poderá executar o teste de stress:
+
+#+begin_src bash
+$ cargo run --bin liteclient
+#+end_src
+
+* Licenciamento
+
+Este  projeto  é  redistribuido  sob  a  licença  GNU  General  Public  License,
+versão 3. Para  maiores informações, veja o arquivo LICENSE  ou veja o cabeçalho
+dos arquivos de código.
+
+Este  projeto  também   utiliza  partes  do  Minerva.rs.   Para  informações  de
+modificações, veja o cabeçalho dos arquivos de código.
+
