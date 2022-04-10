@@ -201,7 +201,7 @@ async fn teste_remocao(
     client: &mut MinervaClient<Channel>,
     cadastrados: Vec<i32>,
 ) -> Result<(), ErrorImpl> {
-    println!("## T{}: Removendo clientes (de forma assíncrona)...", t);
+    println!("## T{}: Removendo clientes...", t);
 
     for id in cadastrados {
         client
