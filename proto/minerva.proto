@@ -31,24 +31,27 @@ service Minerva {
   // Requisição comum de Ping. Pode ser utilizada para verificar
   // o tempo de resposta do servidor.
   rpc Ping(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+}
 
+// CRUD de clientes
+service MinervaClientes {
   // Requisição de cadastro de cliente. Recebe apenas os campos
   // necessários para cadastro, e retorna a estrutura completa do
   // cliente cadastrado.
-  rpc CadastraCliente(NovoClienteRequest) returns (ClienteResponse) {}
+  rpc Cadastra(NovoClienteRequest) returns (ClienteResponse) {}
 
   // Requisição de consulta a um único cliente. Recebe apenas o ID
   // do cliente referido, e retorna a estrutura completa do cliente,
   // se cadastrado.
-  rpc ConsultaCliente(IdClienteRequest) returns (ClienteResponse) {}
+  rpc Consulta(IdClienteRequest) returns (ClienteResponse) {}
 
   /// Requisição para retornar todos os clientes do banco de dados.
   /// Retorna página por página, de forma ordenada.
-  rpc ListaClientes(google.protobuf.Empty) returns (stream ClientePageResponse) {}
+  rpc Lista(google.protobuf.Empty) returns (stream ClientePageResponse) {}
   
   // Requisição de remoção de um cliente. Recebe apenas o ID do cliente
   // referido, e não retorna nada.
-  rpc DeletaCliente(IdClienteRequest) returns (google.protobuf.Empty) {}
+  rpc Deleta(IdClienteRequest) returns (google.protobuf.Empty) {}
 }
 
 /* Mensagens de Requisições */

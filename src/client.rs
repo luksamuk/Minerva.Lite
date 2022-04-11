@@ -26,6 +26,7 @@ use tonic::transport::{Channel, Endpoint};
 use tonic::Request;
 
 use minerva_lite::minerva_client::MinervaClient;
+use minerva_lite::minerva_clientes_client::MinervaClientesClient;
 use minerva_lite::*;
 
 type ErrorImpl = Box<dyn std::error::Error>;
@@ -38,6 +39,8 @@ async fn main() -> Result<(), ErrorImpl> {
     let port = env::var("GRPC_PORT").unwrap();
     let str_addr = format!("http://127.0.0.1:{}", port);
     println!("Endereço do servidor: {}.", str_addr);
+
+    ping_test(str_addr.clone()).await?;
 
     // Sorteia um número de 15 a 50 como número de
     // testes simultâneos.
@@ -77,13 +80,20 @@ fn debrief_wait() {
     let _ = thread::sleep(Duration::from_millis(3000));
 }
 
+/// Executa um teste de ping.
+async fn ping_test(addr: String) -> Result<(), ErrorImpl> {
+    let addr = Endpoint::from_shared(addr.clone())?;
+    let mut client = MinervaClient::connect(addr).await?;
+    print!("Ping... ");
+    let _ = client.ping(Request::new(())).await?;
+    println!("Ok.");
+    Ok(())
+}
+
 /// Executa uma leva de testes.
 async fn run_common_tests(t: u32, addr: String) -> Result<(), ErrorImpl> {
     let addr = Endpoint::from_shared(addr.clone())?;
-    let mut client = MinervaClient::connect(addr).await?;
-
-    // Ping
-    let _ = client.ping(Request::new(())).await?;
+    let mut client = MinervaClientesClient::connect(addr).await?;
 
     let cadastrados = teste_cadastro(t, &mut client).await?;
     teste_consulta(t, &mut client, &cadastrados).await?;
@@ -141,7 +151,7 @@ fn gera_clientes() -> Vec<NovoClienteRequest> {
 /// Testa a conexão, cadastrando os clientes de teste.
 async fn teste_cadastro(
     t: u32,
-    client: &mut MinervaClient<Channel>,
+    client: &mut MinervaClientesClient<Channel>,
 ) -> Result<Vec<i32>, ErrorImpl> {
     let num = {
         use rand::Rng;
@@ -162,7 +172,7 @@ async fn teste_cadastro(
     for _ in 0..num {
         for c in &clientes {
             let request = Request::new(c.clone());
-            let result = client.cadastra_cliente(request).await?;
+            let result = client.cadastra(request).await?;
             let response = result.into_inner();
             println!("   T{}: Cliente cadastrado com ID {}", t, response.id);
             cadastrados.push(response.id);
@@ -176,7 +186,7 @@ async fn teste_cadastro(
 /// Testa a conexão, procurando por um cliente através do ID.
 async fn teste_consulta(
     t: u32,
-    client: &mut MinervaClient<Channel>,
+    client: &mut MinervaClientesClient<Channel>,
     cadastrados: &Vec<i32>,
 ) -> Result<(), ErrorImpl> {
     let num = {
@@ -189,7 +199,7 @@ async fn teste_consulta(
     for _ in 0..num {
         let id = cadastrados.choose(&mut rand::thread_rng()).unwrap();
         let _ = client
-            .consulta_cliente(Request::new(IdClienteRequest { id: *id }))
+            .consulta(Request::new(IdClienteRequest { id: *id }))
             .await?
             .into_inner();
         println!("   T{}: Cliente {} recuperado.", t, id);
@@ -201,14 +211,14 @@ async fn teste_consulta(
 /// Testa a conexão, removendo clientes previamente cadastrados.
 async fn teste_remocao(
     t: u32,
-    client: &mut MinervaClient<Channel>,
+    client: &mut MinervaClientesClient<Channel>,
     cadastrados: Vec<i32>,
 ) -> Result<(), ErrorImpl> {
     println!("## T{}: Removendo clientes...", t);
 
     for id in cadastrados {
         client
-            .deleta_cliente(Request::new(IdClienteRequest { id: id }))
+            .deleta(Request::new(IdClienteRequest { id: id }))
             .await?;
         println!("   T{}: Removido: Usuário #{}", t, id);
     }
@@ -217,10 +227,10 @@ async fn teste_remocao(
 }
 
 /// Lista todos os clientes cadastrados usando um stream.
-async fn teste_lista(t: u32, client: &mut MinervaClient<Channel>) -> Result<(), ErrorImpl> {
+async fn teste_lista(t: u32, client: &mut MinervaClientesClient<Channel>) -> Result<(), ErrorImpl> {
     println!("## T{}: Mostrando dados de clientes via streaming...", t);
 
-    let mut stream = client.lista_clientes(Request::new(())).await?.into_inner();
+    let mut stream = client.lista(Request::new(())).await?.into_inner();
 
     let mut num_paginas = 0;
     let mut num_clientes = 0;
