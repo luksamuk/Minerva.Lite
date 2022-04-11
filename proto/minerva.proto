@@ -42,6 +42,10 @@ service Minerva {
   // se cadastrado.
   rpc ConsultaCliente(IdClienteRequest) returns (ClienteResponse) {}
 
+  /// Requisição para retornar todos os clientes do banco de dados.
+  /// Retorna página por página, de forma ordenada.
+  rpc ListaClientes(google.protobuf.Empty) returns (stream ClientePageResponse) {}
+  
   // Requisição de remoção de um cliente. Recebe apenas o ID do cliente
   // referido, e não retorna nada.
   rpc DeletaCliente(IdClienteRequest) returns (google.protobuf.Empty) {}
@@ -73,5 +77,10 @@ message ClienteResponse {
   string docto = 5;
   bool ativo = 6;
   bool bloqueado = 7;
+}
+
+// Mensagem de retorno de uma página de clientes.
+message ClientePageResponse {
+  repeated ClienteResponse clientes = 1;
 }
 

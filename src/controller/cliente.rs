@@ -23,6 +23,9 @@ use diesel::prelude::*;
 use diesel::result::Error;
 use diesel::PgConnection;
 
+/// Número máximo de clientes mostrados em uma página de listagem.
+pub const CLIENTE_PAGE_SIZE: i64 = 100;
+
 /// Realiza o cadastro de um único cliente, de acordo com os dados básicos
 /// necessários para cadastro. Requer uma conexão com o banco, e o cliente
 /// recém-cadastrado será retornado, em caso de sucesso.
@@ -40,6 +43,23 @@ pub fn consulta(conn: &PgConnection, req_id: i32) -> Result<Cliente, Error> {
         .filter(id.eq(&req_id))
         .load::<Cliente>(conn)
         .map(|v| v.first().unwrap().clone())
+}
+
+/// Retorna uma lista de clientes, por ordem de ID, de acordo com a página
+/// requisitada.
+///
+/// As páginas começam a serem contadas a partir de 0. Em caso de sucesso,
+/// retorna um `Vec` contendo um número `CLIENTE_PAGE_SIZE` de clientes.
+pub fn lista(conn: &PgConnection, pagina: i64) -> Result<Vec<Cliente>, Error> {
+    use crate::model::schema::cliente::dsl::*;
+
+    let offset = (pagina * CLIENTE_PAGE_SIZE) + 1;
+
+    cliente
+        .order(id)
+        .limit(CLIENTE_PAGE_SIZE)
+        .offset(offset)
+        .load::<Cliente>(conn)
 }
 
 /// Remove um cliente, através do ID requisitado, caso o mesmo exista

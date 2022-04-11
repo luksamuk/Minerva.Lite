@@ -19,8 +19,13 @@
 //! clientes, e não possui autenticação.
 
 use chrono;
+use futures::Stream;
 use minerva_lite::minerva_server::{Minerva, MinervaServer};
 use minerva_lite::*;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::pin::Pin;
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
 use bb8::Pool;
@@ -53,11 +58,17 @@ fn log(msg: &str) {
     });
 }
 
+/// Recupera o endereço remoto a partir de uma requisição.
+fn get_address<T>(req: &Request<T>) -> SocketAddr {
+    req.remote_addr()
+        .unwrap_or(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0))
+}
+
 #[tonic::async_trait]
 impl Minerva for MinervaLiteService {
     /// Resposta à requisição de ping.
-    async fn ping(&self, _: Request<()>) -> Result<Response<()>, Status> {
-        log("Ping(Empty) -> (Empty)");
+    async fn ping(&self, req: Request<()>) -> Result<Response<()>, Status> {
+        log(&format!("Ping(Empty) -> (Empty) @ {:?}", get_address(&req)));
         Ok(Response::new(()))
     }
 
@@ -66,7 +77,10 @@ impl Minerva for MinervaLiteService {
         &self,
         req: Request<NovoClienteRequest>,
     ) -> Result<Response<ClienteResponse>, Status> {
-        log("CadastraCliente(NovoCliente) -> (Cliente)");
+        log(&format!(
+            "CadastraCliente(NovoCliente) -> (Cliente) @ {:?}",
+            get_address(&req)
+        ));
 
         let conn = self
             .pool
@@ -84,10 +98,11 @@ impl Minerva for MinervaLiteService {
         &self,
         req: Request<IdClienteRequest>,
     ) -> Result<Response<ClienteResponse>, Status> {
-        let id = req.into_inner().id;
+        let id = req.get_ref().id;
         log(&format!(
-            "ConsultaCliente(IdCliente) -> (Cliente) :: ID = {}",
-            id
+            "ConsultaCliente(IdCliente) -> (Cliente) :: ID = {} @ {:?}",
+            id,
+            get_address(&req)
         ));
 
         let conn = self
@@ -101,12 +116,81 @@ impl Minerva for MinervaLiteService {
             .map(|result| Response::new(result.into()))
     }
 
+    // REQUERIDO: Tipo para o stream das páginas de cliente, que serão enviadas.
+    //
+    // Trata-se de um elemento boxed, atrelado a um endereço fixo de memória,
+    // que implementa o trait Stream e o trait Send. Cada item enviado pelo
+    // Stream poderá ser uma resposta contendo as páginas de clientes, ou
+    // um status próprio para erros do gRPC.
+    type ListaClientesStream =
+        Pin<Box<dyn Stream<Item = Result<ClientePageResponse, Status>> + Send>>;
+
+    /// Retorna um stream por onde será enviada a lista de todos os
+    /// clientes cadastrados.
+    async fn lista_clientes(
+        &self,
+        req: Request<()>,
+    ) -> Result<Response<Self::ListaClientesStream>, Status> {
+        log(&format!(
+            "ListaClientes(Empty) -> (stream ClientePage) @ {:?}",
+            get_address(&req)
+        ));
+
+        let pool = self.pool.clone();
+
+        let (tx, rx) = mpsc::channel(128);
+        tokio::spawn(async move {
+            let mut page_number = 0;
+            loop {
+                let conn = match pool.get().await {
+                    Ok(c) => c,
+                    Err(_) => {
+                        // Impossível recuperar conexão com o BD
+                        break;
+                    }
+                };
+
+                let page: Vec<ClienteResponse> = match controller::lista(&conn, page_number) {
+                    Ok(page) => page.iter().map(|c| c.clone().into()).collect(),
+                    Err(_) => {
+                        // Impossível recuperar página de usuários
+                        break;
+                    }
+                };
+
+                if page.is_empty() {
+                    // Nada a ser enviado
+                    break;
+                }
+
+                let response = ClientePageResponse { clientes: page };
+                match tx.send(Result::<_, Status>::Ok(response)).await {
+                    Ok(_) => {
+                        // Página enfileirada; ir para a próxima
+                        page_number += 1;
+                    }
+                    Err(_) => {
+                        // Stream de saída foi encerrado
+                        break;
+                    }
+                }
+            }
+        });
+
+        // Retorna o stream em si
+        let output_stream = ReceiverStream::new(rx);
+        Ok(Response::new(
+            Box::pin(output_stream) as Self::ListaClientesStream
+        ))
+    }
+
     /// Resposta à requisição de remoção de um cliente.
     async fn deleta_cliente(&self, req: Request<IdClienteRequest>) -> Result<Response<()>, Status> {
-        let id = req.into_inner().id;
+        let id = req.get_ref().id;
         log(&format!(
-            "DeletaCliente(IdCliente) -> (Empty) :: ID = {}",
-            id
+            "DeletaCliente(IdCliente) -> (Empty) :: ID = {} @ {:?}",
+            id,
+            get_address(&req)
         ));
 
         let conn = self

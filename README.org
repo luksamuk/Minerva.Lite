@@ -53,6 +53,16 @@ Enquanto o servidor estiver em execução, você poderá executar o teste de str
 $ cargo run --bin liteclient
 #+end_src
 
+O teste de stress cria um número entre  15 e 50 conexões com o servidor, e segue
+um fluxo similar ao seguinte, para cada conexão:
+
+- Cadastra uma quantidade aleatória entre 5 e 250 clientes;
+- Recupera as  informações de cada um  dos clientes cadastrados, sem  mostrar na
+  tela;
+- Recupera  os dados  dos  clientes  mostrando-os na  tela,  página por  página,
+  através de uma conexão persistente de /streaming/ com o servidor;
+- Remove todos os clientes previamente cadastrados.
+
 * Licenciamento
 
 Este  projeto  é  redistribuido  sob  a  licença  GNU  General  Public  License,

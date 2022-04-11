@@ -19,6 +19,7 @@
 //! avaliar a integração do programa.
 
 use dotenv::dotenv;
+use futures::StreamExt;
 use rand::seq::SliceRandom;
 use std::env;
 use tonic::transport::{Channel, Endpoint};
@@ -48,19 +49,14 @@ async fn main() -> Result<(), ErrorImpl> {
 
     println!("# Executando {} testes simultâneos...", num);
 
-    // Aguardar 3 segundos
-    {
-        use std::thread;
-        use std::time::Duration;
-        let _ = thread::sleep(Duration::from_millis(3000));
-    }
+    debrief_wait();
 
     // Spawnar uma task por teste
     let mut tasks = vec![];
     for t in 0..num {
         let addr = str_addr.clone();
         tasks.push(tokio::spawn(async move {
-            let _ = run_tests(t, addr).await;
+            let _ = run_common_tests(t, addr).await;
         }));
     }
 
@@ -74,8 +70,15 @@ async fn main() -> Result<(), ErrorImpl> {
     Ok(())
 }
 
-/// Executa uma leva dos testes.
-async fn run_tests(t: u32, addr: String) -> Result<(), ErrorImpl> {
+/// Espera 3 segundos antes de continuar.
+fn debrief_wait() {
+    use std::thread;
+    use std::time::Duration;
+    let _ = thread::sleep(Duration::from_millis(3000));
+}
+
+/// Executa uma leva de testes.
+async fn run_common_tests(t: u32, addr: String) -> Result<(), ErrorImpl> {
     let addr = Endpoint::from_shared(addr.clone())?;
     let mut client = MinervaClient::connect(addr).await?;
 
@@ -84,6 +87,7 @@ async fn run_tests(t: u32, addr: String) -> Result<(), ErrorImpl> {
 
     let cadastrados = teste_cadastro(t, &mut client).await?;
     teste_consulta(t, &mut client, &cadastrados).await?;
+    teste_lista(t, &mut client).await?;
     teste_remocao(t, &mut client, cadastrados).await?;
 
     println!("*** T{}: Finalizado ***", t);
@@ -92,7 +96,6 @@ async fn run_tests(t: u32, addr: String) -> Result<(), ErrorImpl> {
 }
 
 /// Imprime os dados de um único cliente.
-#[allow(dead_code)]
 fn imprime_cliente(res: &ClienteResponse) {
     println!(
         "ID: {}\n\
@@ -209,6 +212,43 @@ async fn teste_remocao(
             .await?;
         println!("   T{}: Removido: Usuário #{}", t, id);
     }
+
+    Ok(())
+}
+
+/// Lista todos os clientes cadastrados usando um stream.
+async fn teste_lista(t: u32, client: &mut MinervaClient<Channel>) -> Result<(), ErrorImpl> {
+    println!("## T{}: Mostrando dados de clientes via streaming...", t);
+
+    let mut stream = client.lista_clientes(Request::new(())).await?.into_inner();
+
+    let mut num_paginas = 0;
+    let mut num_clientes = 0;
+
+    while let Some(response) = stream.next().await {
+        match response {
+            Ok(page_response) => {
+                num_paginas += 1;
+                num_clientes += page_response.clientes.len();
+                println!("## Página {}:", num_paginas);
+
+                for c in page_response.clientes {
+                    imprime_cliente(&c);
+                }
+            }
+            Err(_) => {
+                // Conexão encerrada de forma inesperada.
+                break;
+            }
+        }
+    }
+
+    println!(
+        "## T{}: Conexão encerrada pelo servidor remoto. \
+         Páginas: {} \n\
+         Clientes: {}",
+        t, num_paginas, num_clientes,
+    );
 
     Ok(())
 }
